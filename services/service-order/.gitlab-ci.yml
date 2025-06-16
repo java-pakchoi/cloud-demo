@@ -1,0 +1,28 @@
+image: maven:3.9.6-sapmachine-17
+
+stages:
+  - build
+  - deploy
+
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository"
+
+build:
+  stage: build
+  script:
+    - echo "构建 service-order 模块"
+    - mvn -pl service-order -am clean package -DskipTests
+  artifacts:
+    paths:
+      - service-order/target/*.jar
+
+deploy:
+  stage: deploy
+  image: eclipse-temurin:17.0.2-jdk-slim-bullseye
+  script:
+    - echo "部署 service-order 模块"
+    - java -jar service-order/target/service-order-*.jar &
+    - sleep 10
+    - echo "部署完毕"
+  only:
+    - main
