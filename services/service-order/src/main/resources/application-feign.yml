@@ -1,0 +1,9 @@
+feign:
+  sentinel:
+    enabled: true # 开启Sentinel保护功能
+spring:
+  cloud:
+    sentinel:
+      transport:
+        dashboard: localhost:8080 # Sentinel控制台地址
+      eager: true # 启动时就加载Sentinel配置
