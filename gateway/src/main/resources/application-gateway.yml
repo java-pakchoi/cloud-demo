@@ -1,0 +1,16 @@
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: order-route
+          uri: lb://service-order
+          predicates: # 断言拦截所有/api/order的请求,转发到service-order服务
+            - Path=/api/order/**
+          filters:
+            - StripPrefix=1 #截断第一个请求路径/api
+        - id: product-route
+          uri: lb://service-product
+          predicates: # 断言拦截所有/api/product的请求,转发到service-product服务
+            - Path=/api/product/**
+          filters:
+            - StripPrefix=1 #截断第一个请求路径/api

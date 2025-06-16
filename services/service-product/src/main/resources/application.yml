@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: service-product
+  profiles:
+    active: dev # 默认激活dev环境
+    include: database,seata # 引入database和seata两个profile的配置
+  cloud:
+    nacos:
+      server-addr: 127.0.0.1:8848
+      config:
+        namespace: ${spring.profiles.active:dev} # 默认加载nacos里面的dev命名空间的配置
+        file-extension: properties # 配置文件后缀名为properties
+        group: product # 加载nacos里面的order分组的配置
+    sentinel:
+      transport:
+        dashboard: localhost:8080
+      eager: true # 启动时就加载配置
+#      discovery:
+#        group: product # 注册到nacos的分组名
+
+server:
+  port: 9000
+
+---
+spring:
+  config:
+    import:
+      - nacos:service-product.properties
+      - nacos:common.properties
+    activate:
+      on-profile: dev
+
+---
+spring:
+  config:
+    import:
+      - nacos:service-product.properties
+      - nacos:common.properties
+    activate:
+      on-profile: test
