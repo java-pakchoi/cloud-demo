@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: jdbc:mysql://${product.jdbc_host}/cloud-demo?useSSL=false&serverTimezone=Asia/Shanghai
+    username: ${product.jdbc_username}
+    password: ${product.jdbc_password}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis-plus:
+  mapper-locations: classpath:/mapper/**/*.xml # 扫描xml包路径
+  type-aliases-package: com.company.product # 扫描entity包路径
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl  # 控制台SQL打印
