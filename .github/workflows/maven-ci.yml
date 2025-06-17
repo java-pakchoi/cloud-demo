@@ -1,177 +1,201 @@
 # 文件名: .github/workflows/maven-separate-deployment-ci-cd.yml
 
-name: Maven Separate Service CI/CD
+name: Maven Multi-Service Docker CI/CD
 
 on:
   push:
     branches:
       - main
-  #pull_request:
-   # branches:
-    #  - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  # 定义一个用于镜像的通用仓库前缀
+  REGISTRY: ghcr.io
+  IMAGE_OWNER: ${{ github.repository_owner }} # 你的GitHub用户名或组织名
 
 jobs:
-  build: # CI Job - 构建和测试所有模块，并上传所有 JAR
+  build: # CI Job - 构建和测试所有模块，并构建/推送Docker镜像
     runs-on: ubuntu-latest # CI 依然使用 GitHub 托管的 Ubuntu Runner
+    permissions:
+      contents: read
+      packages: write # 需要写入 GitHub Packages (ghcr.io) 的权限
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17 # 根据你的 Java 版本修改
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: maven # 开启Maven依赖缓存
 
-      - name: Cache Maven dependencies
-        uses: actions/cache@v4
+      - name: Build All Services with Maven # 构建所有服务，生成JAR包
+        run: mvn -B package --file pom.xml -Dmaven.test.skip=true # 跳过测试以加快构建，测试可以在单独的Job中
+
+      - name: Set up Docker Buildx # 设置Docker构建环境，支持多平台构建
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry # 登录到ghcr.io
+        uses: docker/login-action@v3
         with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }} # 使用GitHub提供的token进行认证
 
-      - name: Build All Services with Maven
-        run: mvn -B package --file pom.xml
-
-      # --- 上传每个服务的 JAR 包 ---
-      - name: Upload Gateway JAR
-        uses: actions/upload-artifact@v4
+      # --- 构建并推送 Gateway 服务的 Docker 镜像 ---
+      - name: Build and Push Gateway Docker Image
+        uses: docker/build-push-action@v5
         with:
-          name: gateway-jar
-          path: gateway/target/*.jar
+          context: gateway/ # Dockerfile所在的目录
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/gateway:${{ github.sha }} # 镜像标签
+          cache-from: type=gha,scope=gateway-build # 使用GitHub Actions缓存，加快后续构建
+          cache-to: type=gha,scope=gateway-build,mode=max
 
-      - name: Upload Service Order JAR
-        uses: actions/upload-artifact@v4
+      # --- 构建并推送 Service Order 服务的 Docker 镜像 ---
+      - name: Build and Push Service Order Docker Image
+        uses: docker/build-push-action@v5
         with:
-          name: service-order-jar
-          path: services/service-order/target/*.jar
+          context: services/service-order/ # Dockerfile所在的目录
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/service-order:${{ github.sha }}
+          cache-from: type=gha,scope=service-order-build
+          cache-to: type=gha,scope=service-order-build,mode=max
 
-      - name: Upload Service Product JAR
-        uses: actions/upload-artifact@v4
+      # --- 构建并推送 Service Product 服务的 Docker 镜像 ---
+      - name: Build and Push Service Product Docker Image
+        uses: docker/build-push-action@v5
         with:
-          name: service-product-jar
-          path: services/service-product/target/*.jar
+          context: services/service-product/ # Dockerfile所在的目录
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/service-product:${{ github.sha }}
+          cache-from: type=gha,scope=service-product-build
+          cache-to: type=gha,scope=service-product-build,mode=max
 
   deploy-gateway: # 独立部署 Gateway 服务
     needs: build
     runs-on: self-hosted # 自托管 Runner，运行在你的 Windows 本机上
-    # environment:
-    #   name: GatewayProd
-    steps:
-      - name: Download Gateway JAR
-        uses: actions/download-artifact@v4
-        with:
-          name: gateway-jar
-          path: ./gateway-artifact # 下载到 Runner 工作目录下的 gateway-artifact 文件夹
+    permissions:
+      contents: read
+      packages: read # 需要读取 GitHub Packages (ghcr.io) 的权限
 
-      - name: Deploy Gateway Service
+    steps:
+      - name: Log in to GitHub Container Registry # CD Job 同样需要登录才能拉取私有镜像
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and Run Gateway Docker Image
         run: |
-          # 使用 PowerShell 语法
-          $JAR_PATH = (Get-ChildItem -Path ".\gateway-artifact" -Filter "*.jar" -Recurse | Select-Object -First 1).FullName
-          $DEPLOY_DIR = "E:\cloud-study\actions-runner\gateway" # 你的 Windows 部署路径
-          $ServiceName = "GatewayService" # 你希望服务停止/启动时引用的名称，或进程的关键词
+          $IMAGE_TAG = "${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/gateway:${{ github.sha }}"
+          $CONTAINER_NAME = "cloud-demo-gateway-container" # 为容器定义一个固定名称
+          $PORT_MAP = "8080:80" # 容器内部端口:宿主机端口，根据Gateway实际端口修改
           
-          Write-Host "Deploying Gateway from $JAR_PATH to $DEPLOY_DIR"
+          Write-Host "--- Start Deploy Gateway Script ---"
+          Write-Host "Image Tag to pull: $IMAGE_TAG"
+          Write-Host "Container Name: $CONTAINER_NAME"
+          Write-Host "Port Mapping: $PORT_MAP"
           
-          # 1. 停止旧服务
-          # 查找并停止 Java 进程 (更精确地停止与应用名相关的进程)
-          # 这里的 "java -jar gateway" 应该替换为你 Java 应用启动时命令行中 unique 的一部分
-          # 例如你的应用运行后，在任务管理器进程命令行中显示 "java -jar my-gateway-app.jar"
-          # 那么你可以用 "my-gateway-app.jar" 来查找进程
-          # Taskkill /F /FI "IMAGENAME eq java.exe" /FI "WINDOWTITLE eq *gateway*" || Write-Host "Gateway process not found or already stopped." # 示例：通过窗口标题
-          Get-Process -Name java | Where-Object { $_.CommandLine -like "*gateway*" } | Stop-Process -Force -ErrorAction SilentlyContinue # 查找包含 "gateway" 的 Java 进程并停止
-          
-          # 或者，如果你将应用注册为 Windows 服务，可以使用 PowerShell 的 Stop-Service
-          # Stop-Service -Name $ServiceName -ErrorAction SilentlyContinue # 确保 $ServiceName 是你注册的服务名
-          
-          # 2. 确保目标部署目录存在
-          if (-not (Test-Path $DEPLOY_DIR)) {
-              New-Item -ItemType Directory -Path $DEPLOY_DIR -Force
+          # 1. 拉取最新 Docker 镜像
+          Write-Host "Pulling Docker image..."
+          try {
+              docker pull $IMAGE_TAG | Out-Host # 将docker pull的输出显示在日志中
+              Write-Host "Image pulled successfully."
+          } catch {
+              Write-Host "Error pulling image: $($_.Exception.Message)"
+              exit 1
           }
           
-          # 3. 移动 JAR 包到目标目录
-          Copy-Item -Path $JAR_PATH -Destination "$DEPLOY_DIR\gateway.jar" -Force # 复制并重命名
+          # 2. 停止并移除旧的容器（如果存在）
+          Write-Host "Attempting to stop and remove existing container '$CONTAINER_NAME'..."
+          # docker stop/rm 可能会在容器不存在时报错，使用 -ErrorAction SilentlyContinue 避免Job失败
+          docker stop $CONTAINER_NAME -ErrorAction SilentlyContinue | Out-Null
+          docker rm $CONTAINER_NAME -ErrorAction SilentlyContinue | Out-Null
+          Write-Host "Existing container stopped and removed (if it existed)."
           
-          # 4. 启动新服务
-          Write-Host "Starting Gateway service..."
-          # 后台启动 Java 应用 (推荐使用 Start-Process)
-          # Start-Process -FilePath "java" -ArgumentList "-jar", "$DEPLOY_DIR\gateway.jar" -WindowStyle Hidden # 隐藏窗口启动
-          Start-Process -FilePath "java" -ArgumentList "-jar", "$DEPLOY_DIR\gateway.jar"
+          # 3. 运行新的容器
+          Write-Host "Running new container '$CONTAINER_NAME'..."
+          try {
+              docker run -d --name $CONTAINER_NAME -p $PORT_MAP $IMAGE_TAG | Out-Host # -d 后台运行
+              Write-Host "New container started successfully."
+          } catch {
+              Write-Host "Error starting container: $($_.Exception.Message)"
+              exit 1
+          }
           
-          # 或者，如果你将应用注册为 Windows 服务
-          # Start-Service -Name $ServiceName
-          
-          Write-Host "Gateway service deployment completed!"
+          Write-Host "--- End Deploy Gateway Script ---"
+          Write-Host "Gateway service deployed via Docker. Check 'docker ps' for status."
 
   deploy-service-order: # 独立部署 Service Order 服务
     needs: build
-    runs-on: self-hosted # 自托管 Runner，运行在你的 Windows 本机上
-    steps:
-      - name: Download Service Order JAR
-        uses: actions/download-artifact@v4
-        with:
-          name: service-order-jar
-          path: ./service-order-artifact
+    runs-on: self-hosted
+    permissions:
+      contents: read
+      packages: read
 
-      - name: Deploy Service Order
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and Run Service Order Docker Image
         run: |
-          # 使用 PowerShell 语法
-          $JAR_PATH = (Get-ChildItem -Path ".\service-order-artifact" -Filter "*.jar" -Recurse | Select-Object -First 1).FullName
-          $DEPLOY_DIR = "E:\cloud-study\actions-runner\service-order" # 你的 Windows 部署路径
-          $ServiceName = "ServiceOrderService"
+          $IMAGE_TAG = "${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/service-order:${{ github.sha }}"
+          $CONTAINER_NAME = "cloud-demo-order-container"
+          $PORT_MAP = "8080:8009" # 假设Order服务监听8081，请根据实际情况修改
           
-          Write-Host "Deploying Service Order from $JAR_PATH to $DEPLOY_DIR"
+          Write-Host "--- Start Deploy Service Order Script ---"
+          Write-Host "Image Tag to pull: $IMAGE_TAG"
+          Write-Host "Container Name: $CONTAINER_NAME"
+          Write-Host "Port Mapping: $PORT_MAP"
           
-          # 1. 停止旧服务
-          Get-Process -Name java | Where-Object { $_.CommandLine -like "*service-order*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+          docker pull $IMAGE_TAG | Out-Host
+          docker stop $CONTAINER_NAME -ErrorAction SilentlyContinue | Out-Null
+          docker rm $CONTAINER_NAME -ErrorAction SilentlyContinue | Out-Null
+          docker run -d --name $CONTAINER_NAME -p $PORT_MAP $IMAGE_TAG | Out-Host
           
-          # 2. 确保目标部署目录存在
-          if (-not (Test-Path $DEPLOY_DIR)) {
-              New-Item -ItemType Directory -Path $DEPLOY_DIR -Force
-          }
-          
-          # 3. 移动 JAR 包到目标目录
-          Copy-Item -Path $JAR_PATH -Destination "$DEPLOY_DIR\service-order.jar" -Force
-          
-          # 4. 启动新服务
-          Write-Host "Starting Service Order service..."
-          Start-Process -FilePath "java" -ArgumentList "-jar", "$DEPLOY_DIR\service-order.jar" 
-          
-          Write-Host "Service Order deployment completed!"
+          Write-Host "--- End Deploy Service Order Script ---"
+          Write-Host "Service Order deployed via Docker. Check 'docker ps' for status."
 
   deploy-service-product: # 独立部署 Service Product 服务
     needs: build
-    runs-on: self-hosted # 自托管 Runner，运行在你的 Windows 本机上
-    steps:
-      - name: Download Service Product JAR
-        uses: actions/download-artifact@v4
-        with:
-          name: service-product-jar
-          path: ./service-product-artifact
+    runs-on: self-hosted
+    permissions:
+      contents: read
+      packages: read
 
-      - name: Deploy Service Product
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and Run Service Product Docker Image
         run: |
-          # 使用 PowerShell 语法
-          $JAR_PATH = (Get-ChildItem -Path ".\service-product-artifact" -Filter "*.jar" -Recurse | Select-Object -First 1).FullName
-          $DEPLOY_DIR = "E:\cloud-study\actions-runner\service-product" # 你的 Windows 部署路径
-          $ServiceName = "ServiceProductService"
+          $IMAGE_TAG = "${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/service-product:${{ github.sha }}"
+          $CONTAINER_NAME = "cloud-demo-product-container"
+          $PORT_MAP = "8080:9000" # 假设Product服务监听8082，请根据实际情况修改
           
-          Write-Host "Deploying Service Product from $JAR_PATH to $DEPLOY_DIR"
+          Write-Host "--- Start Deploy Service Product Script ---"
+          Write-Host "Image Tag to pull: $IMAGE_TAG"
+          Write-Host "Container Name: $CONTAINER_NAME"
+          Write-Host "Port Mapping: $PORT_MAP"
           
-          # 1. 停止旧服务
-          Get-Process -Name java | Where-Object { $_.CommandLine -like "*service-product*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+          docker pull $IMAGE_TAG | Out-Host
+          docker stop $CONTAINER_NAME -ErrorAction SilentlyContinue | Out-Null
+          docker rm $CONTAINER_NAME -ErrorAction SilentlyContinue | Out-Null
+          docker run -d --name $CONTAINER_NAME -p $PORT_MAP $IMAGE_TAG | Out-Host
           
-          # 2. 确保目标部署目录存在
-          if (-not (Test-Path $DEPLOY_DIR)) {
-              New-Item -ItemType Directory -Path $DEPLOY_DIR -Force
-          }
-          
-          # 3. 移动 JAR 包到目标目录
-          Copy-Item -Path $JAR_PATH -Destination "$DEPLOY_DIR\service-product.jar" -Force
-          
-          # 4. 启动新服务
-          Write-Host "Starting Service Product service..."
-          Start-Process -FilePath "java" -ArgumentList "-jar", "$DEPLOY_DIR\service-product.jar" 
-          
-          Write-Host "Service Product deployment completed!"
+          Write-Host "--- End Deploy Service Product Script ---"
+          Write-Host "Service Product deployed via Docker. Check 'docker ps' for status."
