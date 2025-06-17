@@ -1,296 +1,293 @@
-# 文件名: .github/workflows/maven-separate-deployment-ci-cd.yml
-
 name: Maven Multi-Service Docker CI/CD
 
 on:
   push:
     branches:
       - main
-    #pull_request:
-    # branches:
+  #pull_request:
+   # branches:
     #  - main
 
 env:
-  # 定义一个用于镜像的通用仓库前缀
+  # 镜像仓库地址
   REGISTRY: ghcr.io
-  IMAGE_OWNER: ${{ github.repository_owner }} # 你的GitHub用户名或组织名
+  # 仓库拥有者（GitHub 用户名或组织名）
+  IMAGE_OWNER: ${{ github.repository_owner }}
 
 jobs:
-  build: # CI Job - 构建和测试所有模块，并构建/推送Docker镜像
-    runs-on: ubuntu-latest # CI 依然使用 GitHub 托管的 Ubuntu Runner
+  build:
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write # 需要写入 GitHub Packages (ghcr.io) 的权限
+      packages: write # 需要写入 GitHub 容器注册表的权限
 
     steps:
-      - name: Checkout Code
+      - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: 设置 JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: maven # 开启Maven依赖缓存
+          cache: maven # 缓存 Maven 依赖
 
-      - name: Build All Services with Maven # 构建所有服务，生成JAR包
-        run: mvn -B package --file pom.xml -Dmaven.test.skip=true # 跳过测试以加快构建，测试可以在单独的Job中
+      # 可选：运行测试以确保代码质量（取消注释以启用）
+      # - name: 运行单元测试
+      #   run: mvn -B test --file pom.xml
 
-      - name: Set up Docker Buildx # 设置Docker构建环境，支持多平台构建
+      - name: 构建所有服务
+        run: mvn -B package --file pom.xml -Dmaven.test.skip=true # 跳过测试以加快构建
+
+      - name: 设置 Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry # 登录到ghcr.io
+      - name: 登录 GitHub 容器注册表
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }} # 使用GitHub提供的token进行认证
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      # --- 构建并推送 Gateway 服务的 Docker 镜像 ---
-      - name: Build and Push Gateway Docker Image
+      - name: 构建并推送 Gateway Docker 镜像
         uses: docker/build-push-action@v5
         with:
-          context: gateway/ # Dockerfile所在的目录
+          context: gateway/
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/gateway:${{ github.sha }} # 镜像标签
-          cache-from: type=gha,scope=gateway-build # 使用GitHub Actions缓存，加快后续构建
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/gateway:${{ github.sha }}
+          cache-from: type=gha,scope=gateway-build
           cache-to: type=gha,scope=gateway-build,mode=max
 
-      # --- 构建并推送 Service Order 服务的 Docker 镜像 ---
-      - name: Build and Push Service Order Docker Image
+      - name: 构建并推送 Service Order Docker 镜像
         uses: docker/build-push-action@v5
         with:
-          context: services/service-order/ # Dockerfile所在的目录
+          context: services/service-order/
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/service-order:${{ github.sha }}
           cache-from: type=gha,scope=service-order-build
           cache-to: type=gha,scope=service-order-build,mode=max
 
-      # --- 构建并推送 Service Product 服务的 Docker 镜像 ---
-      - name: Build and Push Service Product Docker Image
+      - name: 构建并推送 Service Product Docker 镜像
         uses: docker/build-push-action@v5
         with:
-          context: services/service-product/ # Dockerfile所在的目录
+          context: services/service-product/
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/service-product:${{ github.sha }}
           cache-from: type=gha,scope=service-product-build
           cache-to: type=gha,scope=service-product-build,mode=max
 
-  deploy-gateway: # 独立部署 Gateway 服务
+  deploy-gateway:
     needs: build
-    runs-on: self-hosted # 自托管 Runner，运行在你的 Windows 本机上
+    runs-on: self-hosted
+    if: github.event_name == 'push' # 仅在 push 时部署，PR 不部署
     permissions:
       contents: read
-      packages: read # 需要读取 GitHub Packages (ghcr.io) 的权限
+      packages: read
 
     steps:
-      - name: Log in to GitHub Container Registry # CD Job 同样需要登录才能拉取私有镜像
+      - name: 登录 GitHub 容器注册表
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull and Run Gateway Docker Image
+      - name: 拉取并运行 Gateway Docker 镜像
+        shell: powershell
         run: |
+          $ErrorActionPreference = "Stop"
           $IMAGE_TAG = "${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/gateway:${{ github.sha }}"
-          $CONTAINER_NAME = "cloud-demo-gateway-container" # 为容器定义一个固定名称
-          $PORT_MAP = "8080:80" # 宿主机端口:容器内部端口。请根据Gateway实际端口修改！
+          $CONTAINER_NAME = "cloud-demo-gateway-container"
+          $PORT_MAP = "8080:80"
 
           Write-Host "--- 开始部署 Gateway 服务 ---"
-          Write-Host "拉取镜像标签: $IMAGE_TAG"
+          Write-Host "镜像标签: $IMAGE_TAG"
           Write-Host "容器名称: $CONTAINER_NAME"
           Write-Host "端口映射: $PORT_MAP"
 
-          # 1. 拉取最新 Docker 镜像
+          # 拉取镜像
           Write-Host "正在拉取 Docker 镜像..."
-          try {
-              docker pull $IMAGE_TAG | Out-Host # 将docker pull的输出显示在日志中
-              Write-Host "镜像拉取成功。"
-          } catch {
-              Write-Host "拉取镜像时发生错误: $($_.Exception.Message)"
-              exit 1 # 拉取失败则退出Job
+          docker pull $IMAGE_TAG
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "拉取镜像失败"
+              exit 1
           }
+          Write-Host "镜像拉取成功"
 
-          # 2. 停止并移除旧的容器（如果存在）
-          Write-Host "检查是否存在名为 '$CONTAINER_NAME' 的容器并尝试停止/移除..."
+          # 停止并移除现有容器
+          Write-Host "检查容器 '$CONTAINER_NAME'..."
           $containerExists = docker ps -a --filter "name=$CONTAINER_NAME" --format "{{.Names}}"
-
           if ($containerExists) {
-            Write-Host "找到容器 '$CONTAINER_NAME'。尝试停止..."
-            try {
-              docker stop $CONTAINER_NAME | Out-Null
-              Write-Host "容器 '$CONTAINER_NAME' 已成功停止。"
-            } catch {
-              Write-Host "停止容器 '$CONTAINER_NAME' 时发生错误：$($_.Exception.Message)。将继续尝试移除..."
-            }
-
-            Write-Host "尝试移除容器 '$CONTAINER_NAME'..."
-            try {
-                docker rm $CONTAINER_NAME | Out-Null
-                Write-Host "容器 '$CONTAINER_NAME' 已成功移除。"
-              } catch {
-                Write-Host "移除容器 '$CONTAINER_NAME' 时发生错误：$($_.Exception.Message)。将继续执行..."
-              }
+              Write-Host "停止容器 '$CONTAINER_NAME'..."
+              docker stop $CONTAINER_NAME
+              Write-Host "移除容器 '$CONTAINER_NAME'..."
+              docker rm $CONTAINER_NAME
           } else {
-            Write-Host "容器 '$CONTAINER_NAME' 不存在。无需停止或移除。"
+              Write-Host "容器 '$CONTAINER_NAME' 不存在"
           }
-          
-          # 3. 运行新的容器
-          Write-Host "正在运行新的容器 '$CONTAINER_NAME'..."
-          try {
-              docker run -d --name $CONTAINER_NAME -p $PORT_MAP $IMAGE_TAG | Out-Host # -d 后台运行
-              Write-Host "新容器已成功启动。"
-          } catch {
-              Write-Host "启动容器时发生错误: $($_.Exception.Message)"
-              exit 1 # 启动失败则退出Job
+
+          # 运行新容器
+          Write-Host "正在运行新容器 '$CONTAINER_NAME'..."
+          docker run -d --name $CONTAINER_NAME -p $PORT_MAP $IMAGE_TAG
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "启动容器失败"
+              exit 1
           }
+          Write-Host "新容器已成功启动"
+
+          # 检查容器状态
+          Write-Host "检查容器状态..."
+          Start-Sleep -Seconds 5 # 等待容器启动
+          $status = docker ps --filter "name=$CONTAINER_NAME" --format "{{.Status}}"
+          if ($status -notlike "*Up*") {
+              Write-Host "容器 '$CONTAINER_NAME' 未正常运行，状态: $status"
+              exit 1
+          }
+          Write-Host "容器状态: $status"
 
           Write-Host "--- Gateway 服务部署完成 ---"
           Write-Host "请使用 'docker ps' 命令检查容器状态。"
 
-  deploy-service-order: # 独立部署 Service Order 服务
+  deploy-service-order:
     needs: build
     runs-on: self-hosted
+    if: github.event_name == 'push'
     permissions:
       contents: read
       packages: read
 
     steps:
-      - name: Log in to GitHub Container Registry
+      - name: 登录 GitHub 容器注册表
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull and Run Service Order Docker Image
+      - name: 拉取并运行 Service Order Docker 镜像
+        shell: powershell
         run: |
+          $ErrorActionPreference = "Stop"
           $IMAGE_TAG = "${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/service-order:${{ github.sha }}"
           $CONTAINER_NAME = "cloud-demo-order-container"
-          $PORT_MAP = "8080:8009" # 宿主机端口:容器内部端口。请根据Order服务实际端口修改！
+          $PORT_MAP = "8080:8009"
 
           Write-Host "--- 开始部署 Service Order 服务 ---"
-          Write-Host "拉取镜像标签: $IMAGE_TAG"
+          Write-Host "镜像标签: $IMAGE_TAG"
           Write-Host "容器名称: $CONTAINER_NAME"
           Write-Host "端口映射: $PORT_MAP"
 
-          # 1. 拉取最新 Docker 镜像
+          # 拉取镜像
           Write-Host "正在拉取 Docker 镜像..."
-          try {
-              docker pull $IMAGE_TAG | Out-Host
-              Write-Host "镜像拉取成功。"
-          } catch {
-              Write-Host "拉取镜像时发生错误: $($_.Exception.Message)"
+          docker pull $IMAGE_TAG
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "拉取镜像失败"
               exit 1
           }
+          Write-Host "镜像拉取成功"
 
-          # 2. 停止并移除旧的容器（如果存在）
-          Write-Host "检查是否存在名为 '$CONTAINER_NAME' 的容器并尝试停止/移除..."
+          # 停止并移除现有容器
+          Write-Host "检查容器 '$CONTAINER_NAME'..."
           $containerExists = docker ps -a --filter "name=$CONTAINER_NAME" --format "{{.Names}}"
-
           if ($containerExists) {
-            Write-Host "找到容器 '$CONTAINER_NAME'。尝试停止..."
-            try {
-              docker stop $CONTAINER_NAME | Out-Null
-              Write-Host "容器 '$CONTAINER_NAME' 已成功停止。"
-            } catch {
-              Write-Host "停止容器 '$CONTAINER_NAME' 时发生错误：$($_.Exception.Message)。将继续尝试移除..."
-            }
-
-            Write-Host "尝试移除容器 '$CONTAINER_NAME'..."
-            try {
-                docker rm $CONTAINER_NAME | Out-Null
-                Write-Host "容器 '$CONTAINER_NAME' 已成功移除。"
-              } catch {
-                Write-Host "移除容器 '$CONTAINER_NAME' 时发生错误：$($_.Exception.Message)。将继续执行..."
-              }
+              Write-Host "停止容器 '$CONTAINER_NAME'..."
+              docker stop $CONTAINER_NAME
+              Write-Host "移除容器 '$CONTAINER_NAME'..."
+              docker rm $CONTAINER_NAME
           } else {
-            Write-Host "容器 '$CONTAINER_NAME' 不存在。无需停止或移除。"
+              Write-Host "容器 '$CONTAINER_NAME' 不存在"
           }
 
-          # 3. 运行新的容器
-          Write-Host "正在运行新的容器 '$CONTAINER_NAME'..."
-          try {
-              docker run -d --name $CONTAINER_NAME -p $PORT_MAP $IMAGE_TAG | Out-Host
-              Write-Host "新容器已成功启动。"
-          } catch {
-              Write-Host "启动容器时发生错误: $($_.Exception.Message)"
+          # 运行新容器
+          Write-Host "正在运行新容器 '$CONTAINER_NAME'..."
+          docker run -d --name $CONTAINER_NAME -p $PORT_MAP $IMAGE_TAG
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "启动容器失败"
               exit 1
           }
+          Write-Host "新容器已成功启动"
+
+          # 检查容器状态
+          Write-Host "检查容器状态..."
+          Start-Sleep -Seconds 5
+          $status = docker ps --filter "name=$CONTAINER_NAME" --format "{{.Status}}"
+          if ($status -notlike "*Up*") {
+              Write-Host "容器 '$CONTAINER_NAME' 未正常运行，状态: $status"
+              exit 1
+          }
+          Write-Host "容器状态: $status"
 
           Write-Host "--- Service Order 服务部署完成 ---"
           Write-Host "请使用 'docker ps' 命令检查容器状态。"
 
-  deploy-service-product: # 独立部署 Service Product 服务
+  deploy-service-product:
     needs: build
     runs-on: self-hosted
+    if: github.event_name == 'push'
     permissions:
       contents: read
       packages: read
 
     steps:
-      - name: Log in to GitHub Container Registry
+      - name: 登录 GitHub 容器注册表
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull and Run Service Product Docker Image
+      - name: 拉取并运行 Service Product Docker 镜像
+        shell: powershell
         run: |
+          $ErrorActionPreference = "Stop"
           $IMAGE_TAG = "${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/service-product:${{ github.sha }}"
           $CONTAINER_NAME = "cloud-demo-product-container"
-          $PORT_MAP = "8080:9000" # 宿主机端口:容器内部端口。请根据Product服务实际端口修改！
+          $PORT_MAP = "8080:9000"
 
           Write-Host "--- 开始部署 Service Product 服务 ---"
-          Write-Host "拉取镜像标签: $IMAGE_TAG"
+          Write-Host "镜像标签: $IMAGE_TAG"
           Write-Host "容器名称: $CONTAINER_NAME"
           Write-Host "端口映射: $PORT_MAP"
 
-          # 1. 拉取最新 Docker 镜像
+          # 拉取镜像
           Write-Host "正在拉取 Docker 镜像..."
-          try {
-              docker pull $IMAGE_TAG | Out-Host
-              Write-Host "镜像拉取成功。"
-          } catch {
-              Write-Host "拉取镜像时发生错误: $($_.Exception.Message)"
+          docker pull $IMAGE_TAG
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "拉取镜像失败"
               exit 1
           }
+          Write-Host "镜像拉取成功"
 
-          # 2. 停止并移除旧的容器（如果存在）
-          Write-Host "检查是否存在名为 '$CONTAINER_NAME' 的容器并尝试停止/移除..."
+          # 停止并移除现有容器
+          Write-Host "检查容器 '$CONTAINER_NAME'..."
           $containerExists = docker ps -a --filter "name=$CONTAINER_NAME" --format "{{.Names}}"
-
           if ($containerExists) {
-            Write-Host "找到容器 '$CONTAINER_NAME'。尝试停止..."
-            try {
-              docker stop $CONTAINER_NAME | Out-Null
-              Write-Host "容器 '$CONTAINER_NAME' 已成功停止。"
-            } catch {
-              Write-Host "停止容器 '$CONTAINER_NAME' 时发生错误：$($_.Exception.Message)。将继续尝试移除..."
-            }
-
-            Write-Host "尝试移除容器 '$CONTAINER_NAME'..."
-            try {
-                docker rm $CONTAINER_NAME | Out-Null
-                Write-Host "容器 '$CONTAINER_NAME' 已成功移除。"
-              } catch {
-                Write-Host "移除容器 '$CONTAINER_NAME' 时发生错误：$($_.Exception.Message)。将继续执行..."
-              }
+              Write-Host "停止容器 '$CONTAINER_NAME'..."
+              docker stop $CONTAINER_NAME
+              Write-Host "移除容器 '$CONTAINER_NAME'..."
+              docker rm $CONTAINER_NAME
           } else {
-            Write-Host "容器 '$CONTAINER_NAME' 不存在。无需停止或移除。"
+              Write-Host "容器 '$CONTAINER_NAME' 不存在"
           }
 
-          # 3. 运行新的容器
-          Write-Host "正在运行新的容器 '$CONTAINER_NAME'..."
-          try {
-              docker run -d --name $CONTAINER_NAME -p $PORT_MAP $IMAGE_TAG | Out-Host
-              Write-Host "新容器已成功启动。"
-          } catch {
-              Write-Host "启动容器时发生错误: $($_.Exception.Message)"
+          # 运行新Fog: 运行新容器
+          Write-Host "正在运行新容器 '$CONTAINER_NAME'..."
+          docker run -d --name $CONTAINER_NAME -p $PORT_MAP $IMAGE_TAG
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "启动容器失败"
               exit 1
           }
+          Write-Host "新容器已成功启动"
+
+          # 检查容器状态
+          Write-Host "检查容器状态..."
+          Start-Sleep -Seconds 5
+          $status = docker ps --filter "name=$CONTAINER_NAME" --format "{{.Status}}"
+          if ($status -notlike "*Up*") {
+              Write-Host "容器 '$CONTAINER_NAME' 未正常运行，状态: $status"
+              exit 1
+          }
+          Write-Host "容器状态: $status"
 
           Write-Host "--- Service Product 服务部署完成 ---"
           Write-Host "请使用 'docker ps' 命令检查容器状态。"
