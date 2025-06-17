@@ -6,9 +6,9 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
+  #pull_request:
+   # branches:
+    #  - main
 
 jobs:
   build: # CI Job - 构建和测试所有模块，并上传所有 JAR
