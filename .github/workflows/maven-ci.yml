@@ -87,7 +87,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 调试：检查工作目录和 PowerShell 版本
-        shell: powershell
+        shell: pwsh
         run: |
           Write-Host "调试：当前工作目录: $PWD"
           Write-Host "调试：PowerShell 版本:"
@@ -96,7 +96,7 @@ jobs:
           dir E:\cloud-study\actions-runner\_work\_temp | Out-String | Write-Host
 
       - name: 拉取并运行 Gateway Docker 镜像
-        shell: powershell
+        shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $IMAGE_TAG = "${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/gateway:${{ github.sha }}"
@@ -151,7 +151,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 调试：检查工作目录和 PowerShell 版本
-        shell: powershell
+        shell: pwsh
         run: |
           Write-Host "调试：当前工作目录: $PWD"
           Write-Host "调试：PowerShell 版本:"
@@ -160,7 +160,7 @@ jobs:
           dir E:\cloud-study\actions-runner\_work\_temp | Out-String | Write-Host
 
       - name: 拉取并运行 Service Order Docker 镜像
-        shell: powershell
+        shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $IMAGE_TAG = "${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/service-order:${{ github.sha }}"
@@ -215,7 +215,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 调试：检查工作目录和 PowerShell 版本
-        shell: powershell
+        shell: pwsh
         run: |
           Write-Host "调试：当前工作目录: $PWD"
           Write-Host "调试：PowerShell 版本:"
@@ -224,7 +224,7 @@ jobs:
           dir E:\cloud-study\actions-runner\_work\_temp | Out-String | Write-Host
 
       - name: 拉取并运行 Service Product Docker 镜像
-        shell: powershell
+        shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $IMAGE_TAG = "${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/service-product:${{ github.sha }}"
