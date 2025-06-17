@@ -23,8 +23,6 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 2 # 获取前一次提交以比较变更
 
       - name: 设置 JDK 17
         uses: actions/setup-java@v4
@@ -33,44 +31,8 @@ jobs:
           java-version: '17'
           cache: maven
 
-      - name: 检查 Gateway 代码变更
-        id: gateway-changes
-        run: |
-          if git diff --name-only HEAD^ HEAD | grep -E '^gateway/'; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: 构建 Gateway（若有变更）
-        if: steps.gateway-changes.outputs.changed == 'true'
-        run: mvn -B package --file gateway/pom.xml -Dmaven.test.skip=true
-
-      - name: 检查 Service Order 代码变更
-        id: order-changes
-        run: |
-          if git diff --name-only HEAD^ HEAD | grep -E '^services/service-order/'; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: 构建 Service Order（若有变更）
-        if: steps.order-changes.outputs.changed == 'true'
-        run: mvn -B package --file services/service-order/pom.xml -Dmaven.test.skip=true
-
-      - name: 检查 Service Product 代码变更
-        id: product-changes
-        run: |
-          if git diff --name-only HEAD^ HEAD | grep -E '^services/service-product/'; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: 构建 Service Product（若有变更）
-        if: steps.product-changes.outputs.changed == 'true'
-        run: mvn -B package --file services/service-product/pom.xml -Dmaven.test.skip=true
+      - name: 构建所有服务
+        run: mvn -B package --file pom.xml -Dmaven.test.skip=true
 
       - name: 设置 Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -82,8 +44,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 构建并推送 Gateway Docker 镜像（若有变更）
-        if: steps.gateway-changes.outputs.changed == 'true'
+      - name: 构建并推送 Gateway Docker 镜像
         uses: docker/build-push-action@v5
         with:
           context: gateway/
@@ -92,8 +53,7 @@ jobs:
           cache-from: type=gha,scope=gateway-build
           cache-to: type=gha,scope=gateway-build,mode=max
 
-      - name: 构建并推送 Service Order Docker 镜像（若有变更）
-        if: steps.order-changes.outputs.changed == 'true'
+      - name: 构建并推送 Service Order Docker 镜像
         uses: docker/build-push-action@v5
         with:
           context: services/service-order/
@@ -102,8 +62,7 @@ jobs:
           cache-from: type=gha,scope=service-order-build
           cache-to: type=gha,scope=service-order-build,mode=max
 
-      - name: 构建并推送 Service Product Docker 镜像（若有变更）
-        if: steps.product-changes.outputs.changed == 'true'
+      - name: 构建并推送 Service Product Docker 镜像
         uses: docker/build-push-action@v5
         with:
           context: services/service-product/
