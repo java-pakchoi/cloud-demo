@@ -115,10 +115,35 @@ jobs:
           # 2. 停止并移除旧的容器（如果存在）
           Write-Host "Attempting to stop and remove existing container '$CONTAINER_NAME'..."
           # docker stop/rm 可能会在容器不存在时报错，使用 -ErrorAction SilentlyContinue 避免Job失败
-          # 停止容器（如果正在运行），|| true 确保即使停止失败（如容器不存在）也不会中断脚本
-          docker stop $CONTAINER_NAME || true
-          # 移除容器（如果存在），|| true 确保即使移除失败也不会中断脚本
-          docker rm $CONTAINER_NAME || true
+          Write-Host "检查是否存在名为 '$CONTAINER_NAME' 的容器..."
+          # docker ps -a --filter "name=$CONTAINER_NAME" --format "{{.Names}}" 会检查所有容器（包括已停止的），
+          # 如果找到，则返回容器名称；否则返回空字符串。
+          # 即使容器不存在，这个命令本身也会成功执行，不会导致脚本失败。
+          $containerExists = docker ps -a --filter "name=$CONTAINER_NAME" --format "{{.Names}}"
+          
+          if ($containerExists) {
+            Write-Host "找到容器 '$CONTAINER_NAME'。尝试停止..."
+            try {
+              # 尝试停止容器，将输出重定向到 Out-Null 避免日志冗余
+              docker stop $CONTAINER_NAME | Out-Null
+              Write-Host "容器 '$CONTAINER_NAME' 已成功停止。"
+            } catch {
+              # 如果停止失败（例如，容器已在停止状态或有其他问题），捕获错误但不中断脚本
+              Write-Host "停止容器 '$CONTAINER_NAME' 时发生错误：$($_.Exception.Message)。继续执行..."
+            }
+          
+            Write-Host "尝试移除容器 '$CONTAINER_NAME'..."
+            try {
+                # 尝试移除容器
+                docker rm $CONTAINER_NAME | Out-Null
+                Write-Host "容器 '$CONTAINER_NAME' 已成功移除。"
+              } catch {
+                # 如果移除失败，捕获错误但不中断脚本
+                Write-Host "移除容器 '$CONTAINER_NAME' 时发生错误：$($_.Exception.Message)。继续执行..."
+              }
+          } else {
+            Write-Host "容器 '$CONTAINER_NAME' 不存在。无需停止或移除。"
+          }
           Write-Host "Existing container stopped and removed (if it existed)."
           
           # 3. 运行新的容器
@@ -161,10 +186,35 @@ jobs:
           Write-Host "Port Mapping: $PORT_MAP"
           
           docker pull $IMAGE_TAG | Out-Host
-          # 停止容器（如果正在运行），|| true 确保即使停止失败（如容器不存在）也不会中断脚本
-          docker stop $CONTAINER_NAME || true
-          # 移除容器（如果存在），|| true 确保即使移除失败也不会中断脚本
-          docker rm $CONTAINER_NAME || true
+          Write-Host "检查是否存在名为 '$CONTAINER_NAME' 的容器..."
+          # docker ps -a --filter "name=$CONTAINER_NAME" --format "{{.Names}}" 会检查所有容器（包括已停止的），
+          # 如果找到，则返回容器名称；否则返回空字符串。
+          # 即使容器不存在，这个命令本身也会成功执行，不会导致脚本失败。
+          $containerExists = docker ps -a --filter "name=$CONTAINER_NAME" --format "{{.Names}}"
+          
+          if ($containerExists) {
+            Write-Host "找到容器 '$CONTAINER_NAME'。尝试停止..."
+            try {
+              # 尝试停止容器，将输出重定向到 Out-Null 避免日志冗余
+              docker stop $CONTAINER_NAME | Out-Null
+              Write-Host "容器 '$CONTAINER_NAME' 已成功停止。"
+            } catch {
+              # 如果停止失败（例如，容器已在停止状态或有其他问题），捕获错误但不中断脚本
+              Write-Host "停止容器 '$CONTAINER_NAME' 时发生错误：$($_.Exception.Message)。继续执行..."
+            }
+          
+            Write-Host "尝试移除容器 '$CONTAINER_NAME'..."
+            try {
+                # 尝试移除容器
+                docker rm $CONTAINER_NAME | Out-Null
+                Write-Host "容器 '$CONTAINER_NAME' 已成功移除。"
+              } catch {
+                # 如果移除失败，捕获错误但不中断脚本
+                Write-Host "移除容器 '$CONTAINER_NAME' 时发生错误：$($_.Exception.Message)。继续执行..."
+              }
+          } else {
+            Write-Host "容器 '$CONTAINER_NAME' 不存在。无需停止或移除。"
+          }
           docker run -d --name $CONTAINER_NAME -p $PORT_MAP $IMAGE_TAG | Out-Host
           
           Write-Host "--- End Deploy Service Order Script ---"
@@ -197,10 +247,35 @@ jobs:
           Write-Host "Port Mapping: $PORT_MAP"
           
           docker pull $IMAGE_TAG | Out-Host
-          # 停止容器（如果正在运行），|| true 确保即使停止失败（如容器不存在）也不会中断脚本
-          docker stop $CONTAINER_NAME || true
-          # 移除容器（如果存在），|| true 确保即使移除失败也不会中断脚本
-          docker rm $CONTAINER_NAME || true
+          Write-Host "检查是否存在名为 '$CONTAINER_NAME' 的容器..."
+          # docker ps -a --filter "name=$CONTAINER_NAME" --format "{{.Names}}" 会检查所有容器（包括已停止的），
+          # 如果找到，则返回容器名称；否则返回空字符串。
+          # 即使容器不存在，这个命令本身也会成功执行，不会导致脚本失败。
+          $containerExists = docker ps -a --filter "name=$CONTAINER_NAME" --format "{{.Names}}"
+  
+          if ($containerExists) {
+            Write-Host "找到容器 '$CONTAINER_NAME'。尝试停止..."
+            try {
+              # 尝试停止容器，将输出重定向到 Out-Null 避免日志冗余
+              docker stop $CONTAINER_NAME | Out-Null
+              Write-Host "容器 '$CONTAINER_NAME' 已成功停止。"
+            } catch {
+              # 如果停止失败（例如，容器已在停止状态或有其他问题），捕获错误但不中断脚本
+              Write-Host "停止容器 '$CONTAINER_NAME' 时发生错误：$($_.Exception.Message)。继续执行..."
+            }
+  
+            Write-Host "尝试移除容器 '$CONTAINER_NAME'..."
+            try {
+                # 尝试移除容器
+                docker rm $CONTAINER_NAME | Out-Null
+                Write-Host "容器 '$CONTAINER_NAME' 已成功移除。"
+              } catch {
+                # 如果移除失败，捕获错误但不中断脚本
+                Write-Host "移除容器 '$CONTAINER_NAME' 时发生错误：$($_.Exception.Message)。继续执行..."
+              }
+          } else {
+            Write-Host "容器 '$CONTAINER_NAME' 不存在。无需停止或移除。"
+          }
           docker run -d --name $CONTAINER_NAME -p $PORT_MAP $IMAGE_TAG | Out-Host
           
           Write-Host "--- End Deploy Service Product Script ---"
