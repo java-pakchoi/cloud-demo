@@ -1,0 +1,177 @@
+# 文件名: .github/workflows/maven-separate-deployment-ci-cd.yml
+
+name: Maven Separate Service CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build: # CI Job - 构建和测试所有模块，并上传所有 JAR
+    runs-on: ubuntu-latest # CI 依然使用 GitHub 托管的 Ubuntu Runner
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17 # 根据你的 Java 版本修改
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Build All Services with Maven
+        run: mvn -B package --file pom.xml
+
+      # --- 上传每个服务的 JAR 包 ---
+      - name: Upload Gateway JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: gateway-jar
+          path: gateway/target/*.jar
+
+      - name: Upload Service Order JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-order-jar
+          path: services/service-order/target/*.jar
+
+      - name: Upload Service Product JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-product-jar
+          path: services/service-product/target/*.jar
+
+  deploy-gateway: # 独立部署 Gateway 服务
+    needs: build
+    runs-on: self-hosted # 自托管 Runner，运行在你的 Windows 本机上
+    # environment:
+    #   name: GatewayProd
+    steps:
+      - name: Download Gateway JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: gateway-jar
+          path: ./gateway-artifact # 下载到 Runner 工作目录下的 gateway-artifact 文件夹
+
+      - name: Deploy Gateway Service
+        run: |
+          # 使用 PowerShell 语法
+          $JAR_PATH = (Get-ChildItem -Path ".\gateway-artifact" -Filter "*.jar" -Recurse | Select-Object -First 1).FullName
+          $DEPLOY_DIR = "E:\cloud-study\actions-runner\gateway" # 你的 Windows 部署路径
+          $ServiceName = "GatewayService" # 你希望服务停止/启动时引用的名称，或进程的关键词
+          
+          Write-Host "Deploying Gateway from $JAR_PATH to $DEPLOY_DIR"
+          
+          # 1. 停止旧服务
+          # 查找并停止 Java 进程 (更精确地停止与应用名相关的进程)
+          # 这里的 "java -jar gateway" 应该替换为你 Java 应用启动时命令行中 unique 的一部分
+          # 例如你的应用运行后，在任务管理器进程命令行中显示 "java -jar my-gateway-app.jar"
+          # 那么你可以用 "my-gateway-app.jar" 来查找进程
+          # Taskkill /F /FI "IMAGENAME eq java.exe" /FI "WINDOWTITLE eq *gateway*" || Write-Host "Gateway process not found or already stopped." # 示例：通过窗口标题
+          Get-Process -Name java | Where-Object { $_.CommandLine -like "*gateway*" } | Stop-Process -Force -ErrorAction SilentlyContinue # 查找包含 "gateway" 的 Java 进程并停止
+          
+          # 或者，如果你将应用注册为 Windows 服务，可以使用 PowerShell 的 Stop-Service
+          # Stop-Service -Name $ServiceName -ErrorAction SilentlyContinue # 确保 $ServiceName 是你注册的服务名
+          
+          # 2. 确保目标部署目录存在
+          if (-not (Test-Path $DEPLOY_DIR)) {
+              New-Item -ItemType Directory -Path $DEPLOY_DIR -Force
+          }
+          
+          # 3. 移动 JAR 包到目标目录
+          Copy-Item -Path $JAR_PATH -Destination "$DEPLOY_DIR\gateway.jar" -Force # 复制并重命名
+          
+          # 4. 启动新服务
+          Write-Host "Starting Gateway service..."
+          # 后台启动 Java 应用 (推荐使用 Start-Process)
+          # Start-Process -FilePath "java" -ArgumentList "-jar", "$DEPLOY_DIR\gateway.jar" -WindowStyle Hidden # 隐藏窗口启动
+          Start-Process -FilePath "java" -ArgumentList "-jar", "$DEPLOY_DIR\gateway.jar"
+          
+          # 或者，如果你将应用注册为 Windows 服务
+          # Start-Service -Name $ServiceName
+          
+          Write-Host "Gateway service deployment completed!"
+
+  deploy-service-order: # 独立部署 Service Order 服务
+    needs: build
+    runs-on: self-hosted # 自托管 Runner，运行在你的 Windows 本机上
+    steps:
+      - name: Download Service Order JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: service-order-jar
+          path: ./service-order-artifact
+
+      - name: Deploy Service Order
+        run: |
+          # 使用 PowerShell 语法
+          $JAR_PATH = (Get-ChildItem -Path ".\service-order-artifact" -Filter "*.jar" -Recurse | Select-Object -First 1).FullName
+          $DEPLOY_DIR = "E:\cloud-study\actions-runner\service-order" # 你的 Windows 部署路径
+          $ServiceName = "ServiceOrderService"
+          
+          Write-Host "Deploying Service Order from $JAR_PATH to $DEPLOY_DIR"
+          
+          # 1. 停止旧服务
+          Get-Process -Name java | Where-Object { $_.CommandLine -like "*service-order*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+          
+          # 2. 确保目标部署目录存在
+          if (-not (Test-Path $DEPLOY_DIR)) {
+              New-Item -ItemType Directory -Path $DEPLOY_DIR -Force
+          }
+          
+          # 3. 移动 JAR 包到目标目录
+          Copy-Item -Path $JAR_PATH -Destination "$DEPLOY_DIR\service-order.jar" -Force
+          
+          # 4. 启动新服务
+          Write-Host "Starting Service Order service..."
+          Start-Process -FilePath "java" -ArgumentList "-jar", "$DEPLOY_DIR\service-order.jar" 
+          
+          Write-Host "Service Order deployment completed!"
+
+  deploy-service-product: # 独立部署 Service Product 服务
+    needs: build
+    runs-on: self-hosted # 自托管 Runner，运行在你的 Windows 本机上
+    steps:
+      - name: Download Service Product JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: service-product-jar
+          path: ./service-product-artifact
+
+      - name: Deploy Service Product
+        run: |
+          # 使用 PowerShell 语法
+          $JAR_PATH = (Get-ChildItem -Path ".\service-product-artifact" -Filter "*.jar" -Recurse | Select-Object -First 1).FullName
+          $DEPLOY_DIR = "E:\cloud-study\actions-runner\service-product" # 你的 Windows 部署路径
+          $ServiceName = "ServiceProductService"
+          
+          Write-Host "Deploying Service Product from $JAR_PATH to $DEPLOY_DIR"
+          
+          # 1. 停止旧服务
+          Get-Process -Name java | Where-Object { $_.CommandLine -like "*service-product*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+          
+          # 2. 确保目标部署目录存在
+          if (-not (Test-Path $DEPLOY_DIR)) {
+              New-Item -ItemType Directory -Path $DEPLOY_DIR -Force
+          }
+          
+          # 3. 移动 JAR 包到目标目录
+          Copy-Item -Path $JAR_PATH -Destination "$DEPLOY_DIR\service-product.jar" -Force
+          
+          # 4. 启动新服务
+          Write-Host "Starting Service Product service..."
+          Start-Process -FilePath "java" -ArgumentList "-jar", "$DEPLOY_DIR\service-product.jar" 
+          
+          Write-Host "Service Product deployment completed!"
