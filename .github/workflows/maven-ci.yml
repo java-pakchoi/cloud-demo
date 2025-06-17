@@ -6,9 +6,9 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
+  #pull_request:
+   # branches:
+    #  - main
 
 env:
   # 定义一个用于镜像的通用仓库前缀
@@ -115,8 +115,10 @@ jobs:
           # 2. 停止并移除旧的容器（如果存在）
           Write-Host "Attempting to stop and remove existing container '$CONTAINER_NAME'..."
           # docker stop/rm 可能会在容器不存在时报错，使用 -ErrorAction SilentlyContinue 避免Job失败
-          docker stop $CONTAINER_NAME -ErrorAction SilentlyContinue | Out-Null
-          docker rm $CONTAINER_NAME -ErrorAction SilentlyContinue | Out-Null
+          # 停止容器（如果正在运行），|| true 确保即使停止失败（如容器不存在）也不会中断脚本
+          docker stop $CONTAINER_NAME || true
+          # 移除容器（如果存在），|| true 确保即使移除失败也不会中断脚本
+          docker rm $CONTAINER_NAME || true
           Write-Host "Existing container stopped and removed (if it existed)."
           
           # 3. 运行新的容器
@@ -159,8 +161,10 @@ jobs:
           Write-Host "Port Mapping: $PORT_MAP"
           
           docker pull $IMAGE_TAG | Out-Host
-          docker stop $CONTAINER_NAME -ErrorAction SilentlyContinue | Out-Null
-          docker rm $CONTAINER_NAME -ErrorAction SilentlyContinue | Out-Null
+          # 停止容器（如果正在运行），|| true 确保即使停止失败（如容器不存在）也不会中断脚本
+          docker stop $CONTAINER_NAME || true
+          # 移除容器（如果存在），|| true 确保即使移除失败也不会中断脚本
+          docker rm $CONTAINER_NAME || true
           docker run -d --name $CONTAINER_NAME -p $PORT_MAP $IMAGE_TAG | Out-Host
           
           Write-Host "--- End Deploy Service Order Script ---"
@@ -193,8 +197,10 @@ jobs:
           Write-Host "Port Mapping: $PORT_MAP"
           
           docker pull $IMAGE_TAG | Out-Host
-          docker stop $CONTAINER_NAME -ErrorAction SilentlyContinue | Out-Null
-          docker rm $CONTAINER_NAME -ErrorAction SilentlyContinue | Out-Null
+          # 停止容器（如果正在运行），|| true 确保即使停止失败（如容器不存在）也不会中断脚本
+          docker stop $CONTAINER_NAME || true
+          # 移除容器（如果存在），|| true 确保即使移除失败也不会中断脚本
+          docker rm $CONTAINER_NAME || true
           docker run -d --name $CONTAINER_NAME -p $PORT_MAP $IMAGE_TAG | Out-Host
           
           Write-Host "--- End Deploy Service Product Script ---"
