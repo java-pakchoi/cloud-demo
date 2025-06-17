@@ -4,11 +4,13 @@ import com.company.order.Order;
 import com.company.order.properties.OrderProperties;
 import com.company.order.service.OrderService;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+@Slf4j
 @RestController
 @RequestMapping("/order")
 public class OrderController {
@@ -21,6 +23,7 @@ public class OrderController {
 
     @GetMapping("/config")
     public OrderProperties getConfig(){
+        log.info("orderProperties:{}",orderProperties);
         return orderProperties;
     }
 
