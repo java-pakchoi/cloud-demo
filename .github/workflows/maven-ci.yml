@@ -12,6 +12,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_OWNER: ${{ github.repository_owner }}
   IMAGE_TAG: latest # 使用固定标签以覆盖旧镜像
+  PROFILE: test  # 可改为 prod、test 等
 
 jobs:
   build:
@@ -116,7 +117,12 @@ jobs:
           if ($containerExists -eq $CONTAINER_NAME) { docker stop $CONTAINER_NAME; docker rm $CONTAINER_NAME } else { Write-Host "容器不存在" }
 
           Write-Host "运行容器..."
-          docker run -d --name $CONTAINER_NAME -p $PORT_MAP --restart unless-stopped $IMAGE_TAG || { Write-Host "启动失败"; exit 1 }
+          docker run -d \
+          --name $CONTAINER_NAME \
+          -p $PORT_MAP \
+          -e "SPRING_PROFILES_ACTIVE=${{ env.PROFILE }}" \
+          --restart unless-stopped \
+          $IMAGE_TAG || { echo "启动失败"; exit 1; }
           Write-Host "启动成功"
 
           Write-Host "检查状态..."
@@ -178,7 +184,12 @@ jobs:
           if ($containerExists -eq $CONTAINER_NAME) { docker stop $CONTAINER_NAME; docker rm $CONTAINER_NAME } else { Write-Host "容器不存在" }
 
           Write-Host "运行容器..."
-          docker run -d --name $CONTAINER_NAME -p $PORT_MAP --restart unless-stopped $IMAGE_TAG || { Write-Host "启动失败"; exit 1 }
+          docker run -d \
+          --name $CONTAINER_NAME \
+          -p $PORT_MAP \
+          -e "SPRING_PROFILES_ACTIVE=${{ env.PROFILE }}" \
+          --restart unless-stopped \
+          $IMAGE_TAG || { echo "启动失败"; exit 1; }
           Write-Host "启动成功"
 
           Write-Host "检查状态..."
@@ -240,7 +251,12 @@ jobs:
           if ($containerExists -eq $CONTAINER_NAME) { docker stop $CONTAINER_NAME; docker rm $CONTAINER_NAME } else { Write-Host "容器不存在" }
 
           Write-Host "运行容器..."
-          docker run -d --name $CONTAINER_NAME -p $PORT_MAP --restart unless-stopped $IMAGE_TAG || { Write-Host "启动失败"; exit 1 }
+          docker run -d \
+          --name $CONTAINER_NAME \
+          -p $PORT_MAP \
+          -e "SPRING_PROFILES_ACTIVE=${{ env.PROFILE }}" \
+          --restart unless-stopped \
+          $IMAGE_TAG || { echo "启动失败"; exit 1; }
           Write-Host "启动成功"
 
           Write-Host "检查状态..."
