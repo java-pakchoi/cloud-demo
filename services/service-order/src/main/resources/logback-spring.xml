@@ -33,6 +33,17 @@
     <springProfile name="test">
         <root level="INFO">
             <appender-ref ref="FILE" />
+            <appender-ref ref="CONSOLE" />
         </root>
     </springProfile>
+
+    <root level="DEBUG">  <!-- 改为DEBUG确保捕获所有启动日志 -->
+        <appender-ref ref="FILE" />
+        <appender-ref ref="CONSOLE" />
+    </root>
+
+    <!-- 添加在root之前 -->
+    <logger name="org.springframework" level="DEBUG"/>
+    <logger name="org.springframework.boot" level="DEBUG"/>
+    <logger name="org.springframework.cloud" level="DEBUG"/>
 </configuration>

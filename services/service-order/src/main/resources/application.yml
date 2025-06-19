@@ -19,6 +19,8 @@ spring:
 logging:
   level:
     com.company.order.feign: debug
+    com.alibaba.nacos: debug
+    io.seata: debug
 
 server:
   port: 8009
