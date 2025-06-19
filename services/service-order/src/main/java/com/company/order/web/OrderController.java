@@ -24,7 +24,6 @@ public class OrderController {
 
     @GetMapping("/config")
     public OrderProperties getConfig(){
-        log.info("orderProperties:{}",orderProperties);
         return orderProperties;
     }
 
