@@ -109,8 +109,26 @@ jobs:
           Write-Host "端口: $PORT_MAP"
           
           Write-Host "清理历史镜像..."
-          docker stop $CONTAINER_NAME
-          docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/gateway:${{ env.IMAGE_TAG }}
+          try {
+            docker stop $CONTAINER_NAME
+            Write-Host "容器已停止"
+          } catch {
+            Write-Host "⚠️ 容器停止失败或不存在：$($_.Exception.Message)"
+          }
+            
+          try {
+            docker rm $CONTAINER_NAME
+            Write-Host "容器已删除"
+          } catch {
+            Write-Host "⚠️ 容器删除失败或不存在：$($_.Exception.Message)"
+          }
+            
+          try {
+            docker rmi "${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/gateway:${{ env.IMAGE_TAG }}"
+            Write-Host "旧镜像已删除"
+          } catch {
+            Write-Host "⚠️ 删除旧镜像失败或不存在：$($_.Exception.Message)"
+          }
           Write-Host "清理历史镜像完成..."
 
           Write-Host "拉取镜像..."
@@ -181,8 +199,26 @@ jobs:
           Write-Host "端口: $PORT_MAP"
           
           Write-Host "清理历史镜像..."
-          docker stop $CONTAINER_NAME
-          ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/service-order:${{ env.IMAGE_TAG }}
+          try {
+            docker stop $CONTAINER_NAME
+            Write-Host "容器已停止"
+          } catch {
+            Write-Host "⚠️ 容器停止失败或不存在：$($_.Exception.Message)"
+          }
+          
+          try {
+            docker rm $CONTAINER_NAME
+            Write-Host "容器已删除"
+          } catch {
+            Write-Host "⚠️ 容器删除失败或不存在：$($_.Exception.Message)"
+          }
+          
+          try {
+            docker rmi "${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/service-order:${{ env.IMAGE_TAG }}"
+            Write-Host "旧镜像已删除"
+          } catch {
+            Write-Host "⚠️ 删除旧镜像失败或不存在：$($_.Exception.Message)"
+          }
           Write-Host "清理历史镜像完成..."
 
           Write-Host "拉取镜像..."
@@ -253,8 +289,26 @@ jobs:
           Write-Host "端口: $PORT_MAP"
           
           Write-Host "清理历史镜像..."
-          docker stop $CONTAINER_NAME
-          ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/service-product:${{ env.IMAGE_TAG }}
+          try {
+            docker stop $CONTAINER_NAME
+            Write-Host "容器已停止"
+          } catch {
+            Write-Host "⚠️ 容器停止失败或不存在：$($_.Exception.Message)"
+          }
+          
+          try {
+            docker rm $CONTAINER_NAME
+            Write-Host "容器已删除"
+          } catch {
+            Write-Host "⚠️ 容器删除失败或不存在：$($_.Exception.Message)"
+          }
+          
+          try {
+            docker rmi "${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/service-product:${{ env.IMAGE_TAG }}"
+            Write-Host "旧镜像已删除"
+          } catch {
+            Write-Host "⚠️ 删除旧镜像失败或不存在：$($_.Exception.Message)"
+          }
           Write-Host "清理历史镜像完成..."
 
           Write-Host "拉取镜像..."
