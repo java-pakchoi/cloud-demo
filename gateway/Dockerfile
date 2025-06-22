@@ -1,22 +1,23 @@
-# 阶段1：构建阶段
-FROM maven:3.9.6-eclipse-temurin-17 AS builder
+# 阶段1：构建阶段（在本地运行时，需要先构建）
+#FROM maven:3.9.6-eclipse-temurin-17 AS builder
 
-WORKDIR /app
+#WORKDIR /app
 # 1. 复制所有文件（包括父POM和嵌套子模块）
-COPY . .
-
-# 设置环境变量
-ENV SPRING_PROFILES_ACTIVE=test
-ENV SPRING_CLOUD_NACOS_SERVER_ADDR=host.docker.internal:8848
+#COPY . .
 
 # 2. 一次性构建整个项目（自动解析层级依赖）
-RUN mvn clean package -Dmaven.test.skip=true
+#RUN mvn clean package -Dmaven.test.skip=true
 
 # 阶段2：运行阶段（以gateway为例）
 FROM eclipse-temurin:17-jre-jammy
 
 WORKDIR /app
 # 3. 只提取目标模块的JAR（例如gateway）
-COPY --from=builder /app/gateway/target/gateway-*.jar ./gateway.jar
+#COPY --from=builder /app/gateway/target/gateway-*.jar ./gateway.jar
+COPY target/gateway-*.jar ./gateway.jar
+
+# 设置环境变量
+ENV SPRING_PROFILES_ACTIVE=test
+ENV SPRING_CLOUD_NACOS_SERVER_ADDR=host.docker.internal:8848
 
 CMD ["java", "-jar", "gateway.jar"]
