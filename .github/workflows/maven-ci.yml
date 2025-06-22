@@ -100,8 +100,8 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $IMAGE_TAG = "${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/gateway:${{ env.IMAGE_TAG }}"
-          $CONTAINER_NAME = "cloud-demo-gateway-container"
-          $PORT_MAP = "80:8080"
+          $CONTAINER_NAME = "service-gateway"
+          $PORT_MAP = "80:80"
 
           Write-Host "--- 部署 Gateway ---"
           Write-Host "镜像: $IMAGE_TAG"
@@ -167,8 +167,8 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $IMAGE_TAG = "${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/service-order:${{ env.IMAGE_TAG }}"
-          $CONTAINER_NAME = "cloud-demo-order-container"
-          $PORT_MAP = "8009:8080"
+          $CONTAINER_NAME = "service-order"
+          $PORT_MAP = "8009:8009"
 
           Write-Host "--- 部署 Service Order ---"
           Write-Host "镜像: $IMAGE_TAG"
@@ -234,8 +234,8 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $IMAGE_TAG = "${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/service-product:${{ env.IMAGE_TAG }}"
-          $CONTAINER_NAME = "cloud-demo-product-container"
-          $PORT_MAP = "9000:8080"
+          $CONTAINER_NAME = "service--product"
+          $PORT_MAP = "9000:9000"
 
           Write-Host "--- 部署 Service Product ---"
           Write-Host "镜像: $IMAGE_TAG"
