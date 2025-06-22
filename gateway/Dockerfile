@@ -3,7 +3,8 @@ FROM eclipse-temurin:17-jdk-jammy as builder
 WORKDIR /app
 
 COPY pom.xml .
-
+COPY mvnw .
+COPY .mvn ./.mvn/
 COPY src ./src
 RUN ./mvnw clean package -Dmaven.test.skip=true
 
