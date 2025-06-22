@@ -4,6 +4,8 @@ FROM eclipse-temurin:17-jdk-jammy as builder
 WORKDIR /app
 # 复制 pom.xml 和 src 目录到工作目录
 COPY pom.xml .
+COPY mvnw .
+COPY .mvn ./.mvn/
 COPY src ./src
 
 # 设置环境变量
