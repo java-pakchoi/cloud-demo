@@ -1,12 +1,12 @@
-FROM eclipse-temurin:17-jdk-jammy as builder
+FROM maven:3.9.6-openjdk-17 as builder
 
 WORKDIR /app
 
 COPY pom.xml .
-COPY mvnw .
-COPY .mvn ./.mvn/
+
 COPY src ./src
-RUN ./mvnw clean package -Dmaven.test.skip=true
+
+RUN mvn clean package -Dmaven.test.skip=true
 
 # 阶段 2: 运行时镜像
 # 使用一个更轻量级的JRE镜像来运行应用程序
