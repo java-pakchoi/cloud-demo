@@ -1,5 +1,5 @@
 # 阶段 1: 构建镜像
-FROM maven:3.9.6-openjdk-17 as builder
+FROM maven:3.9.6-openjdk-17-slim as builder
 # 设置工作目录
 WORKDIR /app
 # 复制 pom.xml 和 src 目录到工作目录
