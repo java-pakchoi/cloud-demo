@@ -280,7 +280,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $IMAGE_TAG = "${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/cloud-demo/service-product:${{ env.IMAGE_TAG }}"
-          $CONTAINER_NAME = "service--product"
+          $CONTAINER_NAME = "service-product"
           $PORT_MAP = "9000:9000"
 
           Write-Host "--- 部署 Service Product ---"
