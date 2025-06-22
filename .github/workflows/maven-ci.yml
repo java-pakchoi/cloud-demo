@@ -34,7 +34,6 @@ jobs:
 
       - name: 构建所有服务
         run: mvn -B package --file pom.xml -Dmaven.test.skip=true # 使用 mvn package 编译打包所有服务，跳过测试。
-        working-directory: cloud-demo
 
       - name: 设置 Docker Buildx
         uses: docker/setup-buildx-action@v3 # 启用 Buildx 插件，支持多平台构建和缓存。
